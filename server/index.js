@@ -14,10 +14,10 @@ app.post('/api/generate-script', async (req, res) => {
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
-        "Authorization": "Bearer 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",
+        "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
         "Content-Type": "application/json",
         "HTTP-Referer": "http://localhost:5173",
-        "X-Title": "AIGTX Script Generator"
+        "X-Title": "A|GTX Script Generator"
       },
       body: JSON.stringify({
         model: "anthropic/claude-3.5-sonnet", // Modelo grátis/barato

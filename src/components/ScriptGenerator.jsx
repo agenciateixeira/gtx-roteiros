@@ -180,13 +180,79 @@ Gere o roteiro completo seguindo EXATAMENTE esta estrutura:`;
     a.click();
   };
 
-  const loadExample = (example) => {
-    setCompanyName(example.company);
-    setBusinessType(example.type);
-    setInitialSituation(example.situation);
-    setMainProblem(example.problem);
-    setSolution(example.solution);
-    setResults(example.results);
+  const loadExample = async (example) => {
+    // Se for a Klabin, buscar dados reais
+    if (example.company === 'Klabin') {
+      setLoading(true);
+      setCompanyName('Klabin');
+      setBusinessType('Carregando informações...');
+      
+      try {
+        // Buscar informações reais da Klabin
+        const searchPrompt = `Pesquise informações sobre a empresa Klabin e me retorne APENAS um JSON com estas informações:
+        
+{
+  "company": "Klabin",
+  "businessType": "Tipo de negócio e área de atuação",
+  "founder": "Nome do fundador principal",
+  "initialSituation": "História inicial da empresa, quando foi fundada, contexto",
+  "mainProblem": "Principais desafios que a empresa enfrentou em sua trajetória",
+  "solution": "Estratégias e inovações que aplicaram para crescer",
+  "results": "Números atuais, posição no mercado, conquistas"
+}
+
+IMPORTANTE: Retorne APENAS o JSON válido, sem texto adicional. Use informações públicas e atualizadas de https://klabin.com.br/`;
+
+        const apiUrl = process.env.NODE_ENV === 'production' 
+          ? '/api/generate-script'
+          : 'http://localhost:3001/api/generate-script';
+        
+        const response = await fetch(apiUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            prompt: searchPrompt
+          })
+        });
+
+        const data = await response.json();
+        let responseText = data.content[0].text;
+        
+        // Limpar markdown e extrair JSON
+        responseText = responseText.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+        
+        const klabinData = JSON.parse(responseText);
+        
+        setCompanyName(klabinData.company);
+        setBusinessType(klabinData.businessType + " | Fundador: " + klabinData.founder);
+        setInitialSituation(klabinData.initialSituation);
+        setMainProblem(klabinData.mainProblem);
+        setSolution(klabinData.solution);
+        setResults(klabinData.results);
+        
+      } catch (error) {
+        console.error('Erro ao buscar dados da Klabin:', error);
+        // Fallback para dados do exemplo
+        setCompanyName(example.company);
+        setBusinessType(example.type);
+        setInitialSituation(example.situation);
+        setMainProblem(example.problem);
+        setSolution(example.solution);
+        setResults(example.results);
+      } finally {
+        setLoading(false);
+      }
+    } else {
+      // Para outros exemplos, usar dados estáticos
+      setCompanyName(example.company);
+      setBusinessType(example.type);
+      setInitialSituation(example.situation);
+      setMainProblem(example.problem);
+      setSolution(example.solution);
+      setResults(example.results);
+    }
   };
 
   const clearForm = () => {
