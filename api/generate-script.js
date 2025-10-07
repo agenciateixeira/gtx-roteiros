@@ -22,7 +22,7 @@ export default async function handler(req, res) {
       headers: {
         "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
         "Content-Type": "application/json",
-        "HTTP-Referer": process.env.SITE_URL || "https://gtx-roteiros.vercel.app",
+        "HTTP-Referer": process.env.VERCEL_URL || "http://localhost:5173",
         "X-Title": "AIGTX Script Generator"
       },
       body: JSON.stringify({

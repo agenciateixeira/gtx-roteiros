@@ -12,6 +12,8 @@ export default function AIScriptGenerator() {
   const [duration, setDuration] = useState('60');
   const [script, setScript] = useState('');
   const [loading, setLoading] = useState(false);
+  const [searchingCompany, setSearchingCompany] = useState(false);
+  const [toast, setToast] = useState({ show: false, message: '', type: '' });
 
   const formats = {
     reels: { name: 'Reels/TikTok', icon: Video },
@@ -21,7 +23,7 @@ export default function AIScriptGenerator() {
   const examples = [
     { 
       company: 'Klabin',
-      type: 'Startup/Scale-up',
+      type: 'Soluções em Papel e Celulose',
       situation: 'Empresa crescendo rapidamente mas sem estrutura de vendas',
       problem: 'Time comercial desorganizado, sem processo claro, perdendo oportunidades',
       solution: 'Implementamos CRM, processo comercial estruturado, treinamento de vendas',
@@ -47,7 +49,7 @@ export default function AIScriptGenerator() {
 
   const generateScript = async () => {
     if (!companyName || !businessType || !initialSituation || !mainProblem) {
-      alert('Preencha pelo menos: Nome da empresa, Tipo de negócio, Situação inicial e Problema principal');
+      showToast('⚠️ Preencha pelo menos: Nome, Tipo de negócio, Situação inicial e Problema', 'error');
       return;
     }
 
@@ -135,32 +137,55 @@ DIRETRIZES CRÍTICAS:
 Gere o roteiro completo seguindo EXATAMENTE esta estrutura:`;
 
     try {
-      // Detecta se está em produção ou desenvolvimento
-      const apiUrl = process.env.NODE_ENV === 'production' 
-        ? '/api/generate-script'
-        : 'http://localhost:3001/api/generate-script';
+      const isDevelopment = window.location.hostname === 'localhost';
+      let data;
       
-      const response = await fetch(apiUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          prompt: prompt
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`Erro na API: ${response.status}`);
+      if (isDevelopment) {
+        // Desenvolvimento: chama direto OpenRouter
+        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${import.meta.env.VITE_OPENROUTER_API_KEY || 'sk-or-v1-sua-chave-aqui'}`,
+            "Content-Type": "application/json",
+            "HTTP-Referer": "http://localhost:5173",
+            "X-Title": "AIGTX Script Generator"
+          },
+          body: JSON.stringify({
+            model: "anthropic/claude-3.5-sonnet",
+            messages: [{ role: "user", content: prompt }]
+          })
+        });
+        
+        const result = await response.json();
+        
+        if (result.error) {
+          throw new Error(result.error.message);
+        }
+        
+        data = { content: [{ text: result.choices[0].message.content }] };
+      } else {
+        // Produção: usa serverless function
+        const response = await fetch('/api/generate-script', {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ prompt })
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Erro na API: ${response.status}`);
+        }
+        
+        data = await response.json();
       }
 
-      const data = await response.json();
       const claudeResponse = data.content[0].text;
       
       setScript(claudeResponse);
     } catch (error) {
       console.error("Erro ao gerar roteiro:", error);
-      alert('Erro ao gerar roteiro. Verifique se o servidor está rodando!');
+      showToast('❌ Erro ao gerar roteiro. Verifique sua conexão!', 'error');
     } finally {
       setLoading(false);
     }
@@ -168,7 +193,7 @@ Gere o roteiro completo seguindo EXATAMENTE esta estrutura:`;
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(script);
-    alert('Roteiro copiado para área de transferência!');
+    showToast('📋 Roteiro copiado!', 'success');
   };
 
   const downloadScript = () => {
@@ -178,6 +203,117 @@ Gere o roteiro completo seguindo EXATAMENTE esta estrutura:`;
     a.href = url;
     a.download = `roteiro-${companyName.replace(/\s+/g, '-').toLowerCase()}-${Date.now()}.txt`;
     a.click();
+  };
+
+  const showToast = (message, type = 'success') => {
+    setToast({ show: true, message, type });
+    setTimeout(() => {
+      setToast({ show: false, message: '', type: '' });
+    }, 3000);
+  };
+
+  const searchCompanyData = async () => {
+    if (!companyName || companyName.trim().length < 2) {
+      alert('Digite o nome de uma empresa para buscar!');
+      return;
+    }
+
+    setSearchingCompany(true);
+    
+    const searchPrompt = `Você é um pesquisador especializado em coletar informações públicas sobre empresas.
+
+EMPRESA PARA PESQUISAR: ${companyName}
+
+Busque informações públicas e atualizadas sobre esta empresa e retorne APENAS um JSON válido com estas informações:
+
+{
+  "company": "Nome oficial da empresa",
+  "businessType": "Segmento de atuação (ex: Tecnologia SaaS, E-commerce de moda, Restaurante italiano, etc) | Fundador: Nome do fundador/CEO principal",
+  "initialSituation": "História da empresa: quando foi fundada, contexto inicial, missão/propósito. Seja específico com datas e localização.",
+  "mainProblem": "Principais desafios e problemas que a empresa enfrentou ou enfrenta. Use dados concretos se disponíveis. Se não souber problemas específicos, infira desafios comuns do setor.",
+  "solution": "Estratégias, inovações ou diferenciais que a empresa aplicou/aplica. Como se destacam no mercado? O que fazem de diferente?",
+  "results": "Números atuais, conquistas, posição no mercado, quantos clientes/funcionários, faturamento (se público), prêmios, reconhecimentos. Seja específico com métricas."
+}
+
+INSTRUÇÕES CRÍTICAS:
+- Use informações REAIS e PÚBLICAS da web
+- Priorize sites oficiais, LinkedIn da empresa, notícias confiáveis
+- Se não encontrar dados específicos, use "Informação não disponível publicamente" ou faça inferências realistas baseadas no setor
+- Números devem ser reais quando disponíveis
+- Retorne APENAS o JSON, sem explicações adicionais
+- Não invente dados fictícios - use apenas informações verificáveis ou indique quando não há dados públicos`;
+    
+    try {
+      // Para desenvolvimento local, chama direto a API
+      // Para produção (Vercel), usa a serverless function
+      const isDevelopment = window.location.hostname === 'localhost';
+      
+      let data;
+      
+      if (isDevelopment) {
+        // Desenvolvimento: chama direto OpenRouter
+        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${import.meta.env.VITE_OPENROUTER_API_KEY || 'sk-or-v1-sua-chave-aqui'}`,
+            "Content-Type": "application/json",
+            "HTTP-Referer": "http://localhost:5173",
+            "X-Title": "AIGTX Script Generator"
+          },
+          body: JSON.stringify({
+            model: "anthropic/claude-3.5-sonnet",
+            messages: [{ role: "user", content: searchPrompt }]
+          })
+        });
+        
+        const result = await response.json();
+        
+        if (result.error) {
+          throw new Error(result.error.message);
+        }
+        
+        data = { content: [{ text: result.choices[0].message.content }] };
+      } else {
+        // Produção: usa serverless function da Vercel
+        const response = await fetch('/api/generate-script', {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            prompt: searchPrompt
+          })
+        });
+        
+        if (!response.ok) {
+          throw new Error('Erro ao buscar informações da empresa');
+        }
+        
+        data = await response.json();
+      }
+      let responseText = data.content[0].text;
+      
+      // Limpar markdown e extrair JSON
+      responseText = responseText.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+      
+      const companyData = JSON.parse(responseText);
+      
+      // Preencher os campos com os dados encontrados
+      setCompanyName(companyData.company);
+      setBusinessType(companyData.businessType);
+      setInitialSituation(companyData.initialSituation);
+      setMainProblem(companyData.mainProblem);
+      setSolution(companyData.solution);
+      setResults(companyData.results);
+      
+      showToast('✅ Dados da empresa carregados com sucesso!', 'success');
+      
+    } catch (error) {
+      console.error('Erro ao buscar dados:', error);
+      showToast('❌ Erro ao buscar informações. Tente novamente ou preencha manualmente.', 'error');
+    } finally {
+      setSearchingCompany(false);
+    }
   };
 
   const loadExample = async (example) => {
@@ -276,8 +412,8 @@ IMPORTANTE: Retorne APENAS o JSON válido, sem texto adicional. Use informaçõe
             </div>
           </div>
           <h1 className="text-4xl font-bold mb-2 tracking-tight">
-            <span className="text-lime-400">Stud</span>
-            <span className="text-gray-400">io</span>
+            <span className="text-lime-400">Studio</span>
+            <span className="text-gray-400"> Criativo</span>
           </h1>
           <p className="text-gray-300 text-lg mb-1">Gerador de Roteiros de Storytelling para Negócios</p>
           <p className="text-lime-400/70 text-sm">Crie vídeos no estilo case de sucesso</p>
@@ -346,13 +482,43 @@ IMPORTANTE: Retorne APENAS o JSON válido, sem texto adicional. Use informaçõe
                   <label className="block text-xs font-semibold text-gray-300 mb-2">
                     Nome da Empresa
                   </label>
-                  <input
-                    type="text"
-                    value={companyName}
-                    onChange={(e) => setCompanyName(e.target.value)}
-                    placeholder="Ex: Klabin, Bella Pizzaria..."
-                    className="w-full px-4 py-3 bg-gray-900/50 border border-gray-700 rounded-lg focus:border-lime-400 focus:outline-none text-white placeholder-gray-500 text-sm"
-                  />
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={companyName}
+                      onChange={(e) => setCompanyName(e.target.value)}
+                      placeholder="Ex: Nubank, iFood, Magazine Luiza..."
+                      className="flex-1 px-4 py-3 bg-gray-900/50 border border-gray-700 rounded-lg focus:border-lime-400 focus:outline-none text-white placeholder-gray-500 text-sm"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && companyName) {
+                          searchCompanyData();
+                        }
+                      }}
+                    />
+                    <button
+                      onClick={searchCompanyData}
+                      disabled={searchingCompany || !companyName}
+                      className="px-4 py-3 bg-lime-400/20 border border-lime-400/40 text-lime-400 rounded-lg hover:bg-lime-400/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm font-semibold whitespace-nowrap"
+                      title="Buscar dados da empresa na web"
+                    >
+                      {searchingCompany ? (
+                        <>
+                          <Loader2 size={16} className="animate-spin" />
+                          <span className="hidden sm:inline">Buscando...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles size={16} />
+                          <span className="hidden sm:inline">Buscar</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  {searchingCompany && (
+                    <p className="text-xs text-lime-400/70 mt-2">
+                      Buscando informações públicas na web... Isso pode levar 15-30 segundos.
+                    </p>
+                  )}
                 </div>
 
                 {/* Business Type */}
@@ -599,20 +765,49 @@ IMPORTANTE: Retorne APENAS o JSON válido, sem texto adicional. Use informaçõe
         </div>
       </div>
 
+      {/* Toast Notification */}
+      {toast.show && (
+        <div className="fixed top-4 right-4 z-50 animate-slide-in">
+          <div className={`rounded-lg px-6 py-4 shadow-2xl border-2 ${
+            toast.type === 'success' 
+              ? 'bg-lime-400/95 border-lime-500 text-gray-900' 
+              : 'bg-red-500/95 border-red-600 text-white'
+          }`}>
+            <p className="font-semibold text-sm">{toast.message}</p>
+          </div>
+        </div>
+      )}
+
       <style jsx>{`
+        @keyframes slide-in {
+          from {
+            transform: translateX(400px);
+            opacity: 0;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
+        }
+        
+        .animate-slide-in {
+          animation: slide-in 0.3s ease-out;
+        }
+        
         .custom-scrollbar::-webkit-scrollbar {
-          width: 8px;
+          width: 6px;
         }
         .custom-scrollbar::-webkit-scrollbar-track {
-          background: rgba(31, 41, 55, 0.5);
-          border-radius: 4px;
+          background: rgba(15, 23, 42, 0.8);
+          border-radius: 10px;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(164, 210, 51, 0.3);
-          border-radius: 4px;
+          background: linear-gradient(180deg, rgba(164, 210, 51, 0.6), rgba(164, 210, 51, 0.3));
+          border-radius: 10px;
+          border: 1px solid rgba(164, 210, 51, 0.2);
         }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: rgba(164, 210, 51, 0.5);
+          background: linear-gradient(180deg, rgba(164, 210, 51, 0.8), rgba(164, 210, 51, 0.5));
         }
       `}</style>
     </div>
