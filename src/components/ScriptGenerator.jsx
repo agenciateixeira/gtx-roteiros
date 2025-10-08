@@ -23,7 +23,7 @@ export default function AIScriptGenerator() {
   const examples = [
     { 
       company: 'Klabin',
-      type: 'Soluções em Papel e Celulose',
+      type: 'Indústria de Papel e Celulose',
       situation: 'Empresa crescendo rapidamente mas sem estrutura de vendas',
       problem: 'Time comercial desorganizado, sem processo claro, perdendo oportunidades',
       solution: 'Implementamos CRM, processo comercial estruturado, treinamento de vendas',
@@ -141,20 +141,23 @@ Gere o roteiro completo seguindo EXATAMENTE esta estrutura:`;
       let data;
       
       if (isDevelopment) {
-        // Desenvolvimento: chama direto OpenRouter
-        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${import.meta.env.VITE_OPENROUTER_API_KEY || 'sk-or-v1-sua-chave-aqui'}`,
-            "Content-Type": "application/json",
-            "HTTP-Referer": "http://localhost:5173",
-            "X-Title": "AIGTX Script Generator"
-          },
-          body: JSON.stringify({
-            model: "anthropic/claude-3.5-sonnet",
-            messages: [{ role: "user", content: prompt }]
-          })
-        });
+        // Desenvolvimento: chama direto Gemini API - GEMINI 2.0 FLASH (MAIS RECENTE!)
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY || 'AIzaSyBauutlQpQu3qZWeV5MZaVHyo2_kzgDbAE'}`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              contents: [{
+                parts: [{
+                  text: prompt
+                }]
+              }]
+            })
+          }
+        );
         
         const result = await response.json();
         
@@ -162,7 +165,7 @@ Gere o roteiro completo seguindo EXATAMENTE esta estrutura:`;
           throw new Error(result.error.message);
         }
         
-        data = { content: [{ text: result.choices[0].message.content }] };
+        data = { content: [{ text: result.candidates[0].content.parts[0].text }] };
       } else {
         // Produção: usa serverless function
         const response = await fetch('/api/generate-script', {
@@ -251,20 +254,23 @@ INSTRUÇÕES CRÍTICAS:
       let data;
       
       if (isDevelopment) {
-        // Desenvolvimento: chama direto OpenRouter
-        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${import.meta.env.VITE_OPENROUTER_API_KEY || 'sk-or-v1-sua-chave-aqui'}`,
-            "Content-Type": "application/json",
-            "HTTP-Referer": "http://localhost:5173",
-            "X-Title": "AIGTX Script Generator"
-          },
-          body: JSON.stringify({
-            model: "anthropic/claude-3.5-sonnet",
-            messages: [{ role: "user", content: searchPrompt }]
-          })
-        });
+        // Desenvolvimento: chama direto Gemini API - GEMINI 2.0 FLASH (MAIS RECENTE!)
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY || 'AIzaSyBauutlQpQu3qZWeV5MZaVHyo2_kzgDbAE'}`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              contents: [{
+                parts: [{
+                  text: searchPrompt
+                }]
+              }]
+            })
+          }
+        );
         
         const result = await response.json();
         
@@ -272,7 +278,7 @@ INSTRUÇÕES CRÍTICAS:
           throw new Error(result.error.message);
         }
         
-        data = { content: [{ text: result.choices[0].message.content }] };
+        data = { content: [{ text: result.candidates[0].content.parts[0].text }] };
       } else {
         // Produção: usa serverless function da Vercel
         const response = await fetch('/api/generate-script', {

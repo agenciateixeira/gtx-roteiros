@@ -17,24 +17,23 @@ export default async function handler(req, res) {
   try {
     const { prompt } = req.body;
 
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": process.env.VERCEL_URL || "http://localhost:5173",
-        "X-Title": "AIGTX Script Generator"
-      },
-      body: JSON.stringify({
-        model: "anthropic/claude-3.5-sonnet",
-        messages: [
-          {
-            role: "user",
-            content: prompt
-          }
-        ]
-      })
-    });
+    // Chamada para Google Gemini API - GEMINI 2.0 FLASH (MAIS RECENTE!)
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${process.env.GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: prompt
+            }]
+          }]
+        })
+      }
+    );
 
     const data = await response.json();
     
@@ -42,8 +41,10 @@ export default async function handler(req, res) {
       throw new Error(data.error.message);
     }
 
-    const scriptText = data.choices[0].message.content;
+    // Extrair o texto da resposta do Gemini
+    const scriptText = data.candidates[0].content.parts[0].text;
     
+    // Retornar no formato esperado pelo frontend
     res.status(200).json({ content: [{ text: scriptText }] });
   } catch (error) {
     console.error('Erro:', error);
